@@ -1,12 +1,14 @@
 from fastapi import FastAPI
 from sqlalchemy import text
-
+from app.api.users import router as users_router
 from app.database.database import engine
 
 app = FastAPI(
     title="SecureBank API",
     version="1.0.0",
 )
+
+app.include_router(users_router)
 
 
 @app.get("/")
