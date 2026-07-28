@@ -3,6 +3,9 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 from dotenv import load_dotenv
 import os
 
+
+
+
 # Load variables from .env to allow python to read.
 load_dotenv()
 

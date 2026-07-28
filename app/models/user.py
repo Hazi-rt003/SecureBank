@@ -1,5 +1,6 @@
 from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 
 from app.database.database import Base
 
@@ -20,6 +21,12 @@ class User(Base):
     is_verified = Column(Boolean, default=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    devices = relationship(
+    "Device",
+    cascade="all, delete-orphan",
+    back_populates="user"
+)
 
     updated_at = Column(
         DateTime(timezone=True),
