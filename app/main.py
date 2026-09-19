@@ -3,9 +3,13 @@ from sqlalchemy import text
 
 from app.api.devices import router as devices_router
 from app.api.users import router as users_router
+from app.api.passkeys import router as passkeys_router
+from app.api.webauthn_test_page import router as webauthn_test_router
+from app.api.transactions import router as transactions_router
+from app.api.accounts import router as accounts_router
+
 
 from app.database.database import engine
-
 
 app = FastAPI(
     title="SecureBank API",
@@ -14,7 +18,10 @@ app = FastAPI(
 
 app.include_router(users_router)
 app.include_router(devices_router)
-
+app.include_router(passkeys_router)
+app.include_router(webauthn_test_router)
+app.include_router(transactions_router)
+app.include_router(accounts_router)
 
 @app.get("/")
 def home():

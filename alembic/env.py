@@ -6,11 +6,9 @@ from dotenv import load_dotenv
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
-from app.database.database import Base
-from app.models.user import User
-from app.models.device import Device
-
+from app.database.database import Base 
 from alembic import context
+from app.models import Account, Device, PasskeyCredential, Transaction, User, WebAuthnChallenge  # noqa: F401
 
 load_dotenv()
 
