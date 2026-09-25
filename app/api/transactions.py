@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Request
 from sqlalchemy.orm import Session
 
+from app.core.limiter import limiter
 from app.database.database import get_db
 from app.models.user import User
 from app.schemas.transaction import TransactionCreate, TransactionResponse
@@ -16,7 +17,9 @@ router = APIRouter(prefix="/transactions", tags=["Transactions"])
 
 
 @router.post("/", response_model=TransactionResponse)
+@limiter.limit("20/minute")
 def create_transaction(
+    request: Request,
     payload: TransactionCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -34,7 +37,9 @@ def list_pending_transactions(
 
 
 @router.post("/{transaction_id}/approve", response_model=TransactionResponse)
+@limiter.limit("10/minute")
 def approve(
+    request: Request,
     transaction_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -44,7 +49,9 @@ def approve(
 
 
 @router.post("/{transaction_id}/reject", response_model=TransactionResponse)
+@limiter.limit("10/minute")
 def reject(
+    request: Request,
     transaction_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

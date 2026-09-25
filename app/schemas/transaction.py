@@ -17,6 +17,9 @@ class TransactionResponse(BaseModel):
     amount: Decimal
     currency: str
     status: str
+    risk_score: int
+    risk_level: str
+
     created_at: datetime | None
     decided_at: datetime | None
     completed_at: datetime | None

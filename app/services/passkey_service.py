@@ -8,18 +8,22 @@ from sqlalchemy.orm import Session
 from webauthn import (
     generate_registration_options,
     verify_registration_response,
+    generate_authentication_options,
+    verify_authentication_response,
     options_to_json,
 )
 from webauthn.helpers import bytes_to_base64url, base64url_to_bytes
 from webauthn.helpers.structs import (
     AuthenticatorSelectionCriteria,
     UserVerificationRequirement,
+    PublicKeyCredentialDescriptor,
 )
 
 from app.models.device import Device
 from app.models.passkey_credential import PasskeyCredential
 from app.models.webauthn_challenge import WebAuthnChallenge
 from app.models.user import User
+from app.services.audit_service import log_event
 
 load_dotenv()
 
@@ -153,4 +157,142 @@ def finish_device_trust_registration(
     db.commit()
     db.refresh(device)
 
+    log_event(
+        db, user_id=user.id, action="device_trusted",
+        details=f"device_id={device.id} via=passkey", device_fingerprint=device.device_fingerprint,
+    )
+
     return device
+
+
+def get_device_credentials(db: Session, device_id: int) -> list[PasskeyCredential]:
+    return (
+        db.query(PasskeyCredential)
+        .filter(PasskeyCredential.device_id == device_id)
+        .all()
+    )
+
+
+def start_login_authentication(db: Session, user_id: int, device_id: int) -> str | None:
+    """
+    Step 1 of login step-up: if this device has at least one registered
+    passkey, issue a challenge scoped to those credentials. Returns None
+    if the device has no passkeys (caller should fall back to plain login).
+    """
+    credentials = get_device_credentials(db, device_id)
+    if not credentials:
+        return None
+
+    allow_credentials = [
+        PublicKeyCredentialDescriptor(id=base64url_to_bytes(c.credential_id))
+        for c in credentials
+    ]
+
+    options = generate_authentication_options(
+        rp_id=RP_ID,
+        allow_credentials=allow_credentials,
+        user_verification=UserVerificationRequirement.PREFERRED,
+    )
+
+    db.query(WebAuthnChallenge).filter(
+        WebAuthnChallenge.user_id == user_id,
+        WebAuthnChallenge.device_id == device_id,
+        WebAuthnChallenge.purpose == "authentication",
+    ).delete()
+
+    db.add(
+        WebAuthnChallenge(
+            user_id=user_id,
+            device_id=device_id,
+            challenge=bytes_to_base64url(options.challenge),
+            purpose="authentication",
+        )
+    )
+    db.commit()
+
+    return options_to_json(options)
+
+
+def finish_login_authentication(db: Session, credential: dict) -> tuple[int, int]:
+    """
+    Step 2 of login step-up: verify the signed assertion against the stored
+    public key. Identifies the user/device purely from the credential ID the
+    browser sends back — that's how passwordless/step-up WebAuthn normally
+    works, since the signature itself is the proof of identity.
+    Returns (user_id, device_id) on success so the caller can issue a token.
+    """
+    credential_id = credential.get("id")
+    if not credential_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing credential id",
+        )
+
+    stored = (
+        db.query(PasskeyCredential)
+        .filter(PasskeyCredential.credential_id == credential_id)
+        .first()
+    )
+    if not stored:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Unknown passkey credential",
+        )
+
+    challenge_row = (
+        db.query(WebAuthnChallenge)
+        .filter(
+            WebAuthnChallenge.user_id == stored.user_id,
+            WebAuthnChallenge.device_id == stored.device_id,
+            WebAuthnChallenge.purpose == "authentication",
+        )
+        .order_by(WebAuthnChallenge.created_at.desc())
+        .first()
+    )
+
+    if not challenge_row:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No pending login challenge for this device. Log in again.",
+        )
+
+    created_at = challenge_row.created_at
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+
+    if datetime.now(timezone.utc) - created_at > timedelta(minutes=CHALLENGE_TTL_MINUTES):
+        db.delete(challenge_row)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Login challenge expired. Log in again.",
+        )
+
+    try:
+        verification = verify_authentication_response(
+            credential=credential,
+            expected_challenge=base64url_to_bytes(challenge_row.challenge),
+            expected_rp_id=RP_ID,
+            expected_origin=ORIGIN,
+            credential_public_key=stored.public_key,
+            credential_current_sign_count=stored.sign_count,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Passkey login verification failed: {exc}",
+        )
+
+    # Anti-replay: bump the stored sign count to whatever the authenticator reported.
+    stored.sign_count = verification.new_sign_count
+
+    device = db.query(Device).filter(Device.id == stored.device_id).first()
+    if device:
+        device.last_seen = datetime.now(timezone.utc)
+
+    user_id, device_id = stored.user_id, stored.device_id
+
+    db.delete(challenge_row)
+    db.commit()
+
+    return user_id, device_id

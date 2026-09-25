@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.models.device import Device
 from app.schemas.device import DeviceCreate
+from app.services.audit_service import log_event
 
 
 def get_user_devices(db: Session, user_id: int) -> list[Device]:
@@ -63,6 +64,10 @@ def trust_device(db: Session, user_id: int, device_id: int) -> Device:
     device.trusted = True
     db.commit()
     db.refresh(device)
+    log_event(
+        db, user_id=user_id, action="device_trusted",
+        details=f"device_id={device.id}", device_fingerprint=device.device_fingerprint,
+    )
     return device
 
 
@@ -71,4 +76,8 @@ def revoke_device_trust(db: Session, user_id: int, device_id: int) -> Device:
     device.trusted = False
     db.commit()
     db.refresh(device)
+    log_event(
+        db, user_id=user_id, action="device_revoked",
+        details=f"device_id={device.id}", device_fingerprint=device.device_fingerprint,
+    )
     return device

@@ -13,6 +13,8 @@ from app.security.jwt import create_access_token
 from app.services.device_service import get_device_by_fingerprint, register_device
 from app.services.account_service import create_account_for_user
 from app.services.notification_service import notify_login
+from app.services.session_service import create_session
+from app.services.audit_service import log_event
 from app.services.passkey_service import (
     get_device_credentials,
     start_login_authentication,
@@ -42,6 +44,8 @@ def create_user(db: Session, user: UserCreate) -> User:
     # account_service for why; there's no real deposit flow yet).
     create_account_for_user(db, db_user.id)
 
+    log_event(db, user_id=db_user.id, action="register", details=f"email={db_user.email}")
+
     return db_user
 
 
@@ -58,6 +62,12 @@ def login_user(
     # form_data.username is passed in as `email` from users.py's /login route
     user = db.query(User).filter(User.email == email).first()
     if not user or not verify_password(password, user.password_hash):
+        log_event(
+            db,
+            user_id=user.id if user else None,
+            action="login_failed",
+            details=f"email={email}",
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -66,6 +76,7 @@ def login_user(
 
     device_trusted: bool | None = None
     new_device: bool | None = None
+    device = None
 
     if device_fingerprint:
         device = get_device_by_fingerprint(db, user.id, device_fingerprint)
@@ -121,7 +132,17 @@ def login_user(
             new_device=bool(new_device),
         )
 
-    access_token = create_access_token(data={"sub": str(user.id)})
+    jti, _session = create_session(db, user_id=user.id, device_id=device.id if device else None)
+    access_token = create_access_token(data={"sub": str(user.id), "jti": jti})
+
+    log_event(
+        db,
+        user_id=user.id,
+        action="login_success",
+        details=f"device_fingerprint={device_fingerprint}",
+        device_fingerprint=device_fingerprint,
+    )
+
     return Token(
         access_token=access_token,
         token_type="bearer",
@@ -131,8 +152,18 @@ def login_user(
 
 
 def complete_passkey_login(db: Session, credential: dict) -> Token:
-    user_id, _device_id = finish_login_authentication(db, credential)
-    access_token = create_access_token(data={"sub": str(user_id)})
+    user_id, device_id = finish_login_authentication(db, credential)
+
+    jti, _session = create_session(db, user_id=user_id, device_id=device_id)
+    access_token = create_access_token(data={"sub": str(user_id), "jti": jti})
+
+    log_event(
+        db,
+        user_id=user_id,
+        action="login_success",
+        details="via passkey step-up",
+    )
+
     return Token(
         access_token=access_token,
         token_type="bearer",

@@ -8,7 +8,7 @@ from sqlalchemy import pool
 
 from app.database.database import Base 
 from alembic import context
-from app.models import Account, Device, PasskeyCredential, Transaction, User, WebAuthnChallenge  # noqa: F401
+from app.models import Account, AuditLog, Device, PasskeyCredential, Transaction, User, UserSession, WebAuthnChallenge  # noqa: F401
 
 load_dotenv()
 

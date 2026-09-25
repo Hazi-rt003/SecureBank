@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -13,6 +14,62 @@ from app.services.notification_service import (
     notify_transaction_approval_request,
     notify_transaction_decision,
 )
+from app.services.audit_service import log_event
+
+
+def _compute_risk(
+    db: Session,
+    user_id: int,
+    sender_account: Account,
+    recipient_account: Account,
+    amount: Decimal,
+    initiated_device,
+) -> tuple[int, str]:
+    """
+    Simple rule-based risk scorer (0-100). Not ML, not meant to be — just
+    a set of weighted red flags common to real fraud-detection systems:
+    large relative/absolute amounts, first-time recipients, and untrusted
+    or unknown initiating devices.
+    """
+    score = 0
+
+    if sender_account.balance > 0:
+        ratio = amount / sender_account.balance
+        if ratio >= Decimal("0.9"):
+            score += 50
+        elif ratio >= Decimal("0.5"):
+            score += 30
+        elif ratio >= Decimal("0.2"):
+            score += 10
+
+    if amount >= Decimal("10000"):
+        score += 15
+
+    prior_completed = (
+        db.query(Transaction)
+        .filter(
+            Transaction.sender_user_id == user_id,
+            Transaction.recipient_account_id == recipient_account.id,
+            Transaction.status == "completed",
+        )
+        .first()
+    )
+    if not prior_completed:
+        score += 20
+
+    if not initiated_device or not initiated_device.trusted:
+        score += 25
+
+    score = min(score, 100)
+
+    if score >= 70:
+        level = "HIGH"
+    elif score >= 30:
+        level = "MEDIUM"
+    else:
+        level = "LOW"
+
+    return score, level
 
 
 def initiate_transaction(
@@ -51,6 +108,10 @@ def initiate_transaction(
     if device_fingerprint:
         initiated_device = get_device_by_fingerprint(db, user.id, device_fingerprint)
 
+    risk_score, risk_level = _compute_risk(
+        db, user.id, sender_account, recipient_account, payload.amount, initiated_device
+    )
+
     transaction = Transaction(
         sender_user_id=user.id,
         sender_account_id=sender_account.id,
@@ -58,11 +119,22 @@ def initiate_transaction(
         amount=payload.amount,
         currency=payload.currency or sender_account.currency,
         status="pending_approval",
+        risk_score=risk_score,
+        risk_level=risk_level,
         initiated_device_id=initiated_device.id if initiated_device else None,
     )
     db.add(transaction)
     db.commit()
     db.refresh(transaction)
+
+    log_event(
+        db,
+        user_id=user.id,
+        action="transaction_initiated",
+        details=f"transaction_id={transaction.id} amount={transaction.amount} "
+        f"recipient={payload.recipient_account_number} risk_level={risk_level}",
+        device_fingerprint=device_fingerprint,
+    )
 
     notify_transaction_approval_request(
         user_id=user.id,
@@ -158,6 +230,15 @@ def approve_transaction(
     db.commit()
     db.refresh(transaction)
 
+    log_event(
+        db,
+        user_id=user.id,
+        action="transaction_approved",
+        details=f"transaction_id={transaction.id} amount={transaction.amount} "
+        f"risk_level={transaction.risk_level}",
+        device_fingerprint=device_fingerprint,
+    )
+
     notify_transaction_decision(
         user_id=user.id,
         transaction_id=transaction.id,
@@ -179,6 +260,14 @@ def reject_transaction(
 
     db.commit()
     db.refresh(transaction)
+
+    log_event(
+        db,
+        user_id=user.id,
+        action="transaction_rejected",
+        details=f"transaction_id={transaction.id} amount={transaction.amount}",
+        device_fingerprint=device_fingerprint,
+    )
 
     notify_transaction_decision(
         user_id=user.id,

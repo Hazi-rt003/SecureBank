@@ -19,6 +19,10 @@ class Transaction(Base):
     # pending_approval | completed | rejected | failed
     status = Column(String, nullable=False, default="pending_approval")
 
+    risk_score = Column(Integer, nullable=False, default=0)
+    risk_level = Column(String, nullable=False, default="LOW")  # LOW | MEDIUM | HIGH
+
+
     # Device the transaction was initiated from (may be untrusted/unknown)
     initiated_device_id = Column(Integer, ForeignKey("devices.id"), nullable=True)
 
