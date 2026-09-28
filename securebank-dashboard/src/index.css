@@ -1,0 +1,28 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #12172b;
+  --color-ink-soft: #1b2140;
+  --color-ink-line: #262c4c;
+  --color-paper: #f7f7f5;
+  --color-paper-line: #e4e4e0;
+  --color-signal: #3d5aff;
+  --color-signal-soft: #eef0ff;
+  --color-risk-low: #1f7a5c;
+  --color-risk-low-soft: #e6f3ee;
+  --color-risk-medium: #a9760a;
+  --color-risk-medium-soft: #faf1e0;
+  --color-risk-high: #b23b2c;
+  --color-risk-high-soft: #fbe9e6;
+
+  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+}

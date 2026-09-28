@@ -1,4 +1,7 @@
+import os
+
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from slowapi import _rate_limit_exceeded_handler
@@ -21,6 +24,19 @@ from app.database.database import engine
 app = FastAPI(
     title="SecureBank API",
     version="1.0.0",
+)
+
+# Comma-separated list in .env, e.g. CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+# Defaults cover Vite's dev server on both hostnames it might report.
+_default_origins = "http://localhost:5173,http://127.0.0.1:8000"
+CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", _default_origins).split(",") if o.strip()]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=False,  # auth is a Bearer token, not cookies -- no credentials needed
+    allow_methods=["*"],
+    allow_headers=["*"],  # must include our custom X-Device-Fingerprint etc. headers
 )
 
 app.state.limiter = limiter
