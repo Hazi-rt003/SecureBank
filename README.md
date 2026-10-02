@@ -2,7 +2,7 @@
 
 A security-focused digital banking backend and dashboard, built to explore what real banking-grade authentication, fraud protection, and session security look like in practice — not just a CRUD app with a login screen bolted on.
 
-**Live demo:** _deployment in progress — link coming soon_
+**Live demo:** (https://secure-bank-neon.vercel.app/)
 **Repo:** https://github.com/Hazi-rt003/SecureBank
 
 ---
