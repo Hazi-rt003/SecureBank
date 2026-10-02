@@ -16,7 +16,7 @@ A security-focused digital banking backend and dashboard, built to explore what 
 | 3 | Trusted devices, passkey (WebAuthn) verification, push approval for transactions, login notifications, device fingerprinting | ✅ Done |
 | 4 | Audit logs, transaction risk scoring, rate limiting, session management | ✅ Done |
 | 5 | React web dashboard | ✅ Done |
-| 6 | Docker, HTTPS, cloud deployment | 🔨 In progress |
+| 6 | Deployment | ✅ Done |
 
 This is an actively developed learning project. Some design choices below are explicitly flagged as placeholders rather than production-grade decisions — see [Known limitations](#known-limitations).
 
