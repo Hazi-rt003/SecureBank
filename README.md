@@ -2,7 +2,7 @@
 
 A security-focused digital banking backend and dashboard, built to explore what real banking-grade authentication, fraud protection, and session security look like in practice — not just a CRUD app with a login screen bolted on.
 
-**Live demo:** _deployment in progress — link coming soon_
+**Live demo:** https://secure-bank-cyan.vercel.app
 **Repo:** https://github.com/Hazi-rt003/SecureBank
 
 ---
@@ -16,7 +16,7 @@ A security-focused digital banking backend and dashboard, built to explore what 
 | 3 | Trusted devices, passkey (WebAuthn) verification, push approval for transactions, login notifications, device fingerprinting | ✅ Done |
 | 4 | Audit logs, transaction risk scoring, rate limiting, session management | ✅ Done |
 | 5 | React web dashboard | ✅ Done |
-| 6 | Docker, HTTPS, cloud deployment | 🔨 In progress |
+| 6 | Docker, HTTPS | ✅ Done |
 
 This is an actively developed learning project. Some design choices below are explicitly flagged as placeholders rather than production-grade decisions — see [Known limitations](#known-limitations).
 
