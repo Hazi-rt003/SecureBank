@@ -24,7 +24,7 @@ This is an actively developed learning project. Some design choices below are ex
 
 ## Why this project exists
 
-Most "banking app" tutorials stop at JWT auth. SecureBank goes further into the parts that actually matter for protecting an account:
+Most "banking app" stop at JWT auth. SecureBank goes further into the parts that actually matter for protecting an account:
 
 - **A device being logged in isn't the same as a device being trusted.** Trust is earned by registering a passkey — a real WebAuthn credential bound to that device's hardware — not just by having a valid session token.
 - **Moving money requires more than being logged in.** Every transaction starts `pending_approval` and only completes once it's explicitly approved from a *trusted* device, regardless of which device initiated it.
